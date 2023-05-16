@@ -136,3 +136,35 @@ mean((hands[, 1] %in% aces & hands[, 2] %in% facecard) |
 
 
 # 14.6.1 Monte Carlo example
+# Instead of using combinations to deduce the exact probability of a Natural 21,
+# we can use a Monte Carlo to estimate this probability.
+# In this case, we draw two cards over and over and keep track of how many 21s
+# we get. We can use the function sample to draw two cards without replacements:
+hand <- sample(deck, 2)
+hand
+# And then check if one card is an Ace and the other a face card or a 10. Going
+# forward, we include 10 when we say face card. Now we need to check both
+# possibilities:
+(hands[1] %in% aces & hands[2] %in% facecard) |
+    (hands[2] %in% aces & hands[1] %in% facecard)
+# If we repeat this 10,000 times, we get a very good approximation of the
+# probability of a Natural 21.
+blackjack <- function() {
+    hand <- sample(deck, 2)
+    (hand[1] %in% aces & hand[2] %in% facecard) |
+        (hand[2] %in% aces & hand[1] %in% facecard)
+}
+blackjack()
+# Here we do have to check both possibilities: Ace first or
+# Ace second because we are not using the combinations
+# function. The function returns TRUE if we get a 21 and
+# FALSE otherwise.
+
+# Now we can play this game, say, 100,000 times:
+B <- 100000
+results <- replicate(B, blackjack())
+mean(results)
+# [1] 0.04884
+# [1] 0.04876
+# [1] 0.04763
+
