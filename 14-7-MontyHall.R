@@ -25,7 +25,7 @@ stick_strategy <- function() {
     # make a first pick
     pick <- sample(doors, 1)
     # identify show door (not the pick and not the price)
-    show <- doors[!((doors == prize) | (doors == pick))]
+    show <- doors[!((doors == prize) | (doors == pick))] %>% sample(1)
     # choose the first picked door
     choose <- pick
     # compare to prize door
