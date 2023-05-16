@@ -16,23 +16,40 @@
 # for pedagogical purposes.
 B <- 10000
 stick_strategy <- function() {
+    # create doors
     doors <- as.character(1:3)
-    prize <- sample(c('car', 'goat', 'goat'))
-    prize_door <- doors[prize == 'car']
+    # create the behind_door_ objects
+    behind_door <- sample(c('goat', 'goat', 'car'))
+    # identify the winning door
+    prize <- doors[behind_door == 'car']
+    # make a first pick
     pick <- sample(doors, 1)
-    show <- sample(doors[!doors %in% c(pick, prize_door)], 1)
-    stick <- pick
-    stick == prize_door
+    # identify show door (not the pick and not the price)
+    show <- doors[!((doors == prize) | (doors == pick))]
+    # choose the first picked door
+    choose <- pick
+    # compare to prize door
+    choose == prize
 }
 
 switch_strategy <- function() {
+    # create doors
     doors <- as.character(1:3)
-    prize <- sample(c('car', 'goat', 'goat'))
-    prize_door <- doors[prize == 'car']
+    # identify the winning door
+    behind_door <- sample(c('goat', 'goat', 'car'))
+    # identify the winning door
+    prize <- doors[behind_door == 'car']
+    # make a first pick
     pick <- sample(doors, 1)
-    show <- sample(doors[!doors %in% c(pick, prize_door)], 1)
-    switch <- doors[!doors %in% c(pick, show)]
-    switch == prize_door
+    # identify show door (not the pick and not the price)
+    # if two are available, pick one
+    show <- doors[!((doors == prize) | (doors == pick))] %>% sample(1)
+    # get the switching door. not the one shown and not the picked
+    switch <- doors[!(doors == show | doors == pick)]
+    # choose the switch door
+    choose = switch
+    # compare to prize door
+    choose == prize
 }
 
 replicate(B, stick_strategy()) %>% 
@@ -46,4 +63,6 @@ replicate(B, switch_strategy()) %>%
 # a door, show, that is definitely not a winner from our choices.
 # We also see that unless we get it right when we first pick,
 # you win: 1 - 1/3 = 2/3.
+
+
 
