@@ -168,3 +168,75 @@ mean(results)
 # [1] 0.04876
 # [1] 0.04763
 
+
+
+# 14.11 Theoretical continuous distributions
+library(tidyverse)
+library(dslabs)
+data(heights)
+x <- heights %>%
+    filter(sex=="Male") %>%
+    pull(height)
+
+
+# The cumulative distribution for the normal distribution is defined by
+# a mathematical formula which in R can be obtained with the function pnorm.
+# We say that a random quantity is normally distributed with average m
+# and standard deviation s if its probability distribution is defined by:
+# 
+# F(a) = rnorm(a, m, s)
+# 
+# This is useful because if we are willing to use the normal approximation for, say,
+# height, we don’t need the entire dataset to answer questions such as: what is
+# the probability that a randomly selected student is taller then 70 inches? We
+# just need the average height and standard deviation:
+m <- mean(x)
+s <- sd(x)
+1 - pnorm(70.5, m, s)
+
+# 
+# With continuous distributions, the probability of a singular value is not even defined.
+# Instead, we define probabilities for intervals.
+# In cases like height, in which the data is rounded, the normal approximation is
+# particularly useful if we deal with intervals that include exactly one round number.
+# For example, the normal distribution is useful for approximating the proportion of
+# students reporting values in intervals like the following three:
+mean(x <= 68.5) - mean(x <= 67.5)
+mean(x <= 69.5) - mean(x <= 68.5)
+mean(x <= 70.5) - mean(x <= 69.5)
+
+# Note how close we get with the normal approximation:
+pnorm(68.5, m, s) - pnorm(67.5, m, s)
+pnorm(69.5, m, s) - pnorm(68.5, m, s)
+pnorm(70.5, m, s) - pnorm(69.5, m, s)
+
+# However, the approximation is not as useful for other intervals.
+# For instance, notice how the approximation breaks down when we try to estimate:
+mean(x <= 70.9) - mean(x <= 70.1)
+pnorm(70.9, m, s) - pnorm(70.1, m, s)
+
+
+# 14.12 Monte Carlo simulations for continuous variables
+# R provides functions to generate normally distributed outcomes. Specifically,
+# the rnorm function takes three arguments: size, average (defaults to 0),
+# and standard deviation (defaults to 1) and produces random numbers. Here
+# is an example of how we could generate data that looks like our reported
+# heights:
+n <- length(x)
+m <- mean(x)
+s <- sd(x)
+simulated_heights <- rnorm(n, m, s)
+
+simulated_heights %>% 
+    qplot(binwidth = 1, fill = I('steelblue'), color = I('black'))
+# This is one of the most useful functions in R as it will permit us to
+# generate data that mimics natural events and answers questions related
+# to what could happen by chance by running Monte Carlo simulations.
+B <- 10000
+tallest <- replicate(B, {
+    simulated_data <- rnorm(800, m, s)
+    max(simulated_data) })
+mean(tallest >= 7*12)
+
+tallest %>% 
+    qplot(binwidth=1, fill = I('steelblue'), color = I('black'))
