@@ -91,3 +91,14 @@ qplot(n, sim_prob) +
 # we would have still been able to accurately estimate the probabilities.
 
 
+# on the stabilization of results of monte carlo simulation:
+# birthday problem with n = 22
+B <- 10^seq(1, 5, len = 100)
+compute_prob <- function(B, n=25){
+    same_day <- replicate(B, same_birthday(n))
+    mean(same_day)
+}
+prob <- sapply(B, compute_prob)
+qplot(log10(B), prob, geom = "line") +
+    geom_hline(yintercept = mean(prob[70:100]), color = 'red', linetype='dashed')
+
