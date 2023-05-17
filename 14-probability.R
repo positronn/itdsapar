@@ -254,6 +254,7 @@ x %>%
     ggplot(aes(x, f)) +
     geom_line()
 
+x <- seq(0, 10, length.out = 100)
 x %>% 
     tibble(f = dgamma(x, shape = 1),
            g = dgamma(x, shape = 2),
@@ -261,7 +262,8 @@ x %>%
     ggplot() +
     geom_line(aes(x = x, y = f), color = 'steelblue') +
     geom_line(aes(x = x, y = g), color = 'orangered') +
-    geom_line(aes(x = x, y = h), color = 'forestgreen')
+    geom_line(aes(x = x, y = h), color = 'forestgreen') +
+    ylab('gamma')
 
 # For example, for the student-t, 
 # the shorthand t is used so the functions are dt for the density, qt for the quantiles,
