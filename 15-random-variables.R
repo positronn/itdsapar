@@ -1,6 +1,6 @@
 # Chapter 15
 # Random variables
-
+library(tidyverse)
 # 15.2 Sampling models
 # Suppose a very small casino hires you to consult on whether they should set up
 # roulette wheels. To keep the example simple, we will assume that 1,000 people will
@@ -113,3 +113,36 @@ n <- 1000
 pbinom(n / 2, size = n, prob = 10/19)
 pbinom(n / 2 - 1, size = n, prob = 10/19)
 
+
+
+# 15.7 Central Limit Theorem
+# The Central Limit Theorem (CLT) tells us that when the number of draws, also
+# called the sample size, is large, the probability distribution of the sum of the
+# independent draws is approximately normal. 
+
+# We previously ran this monte Calro simulation
+n <- 1000
+B <- 10000
+roulette_winnings <- function(n) {
+    X <- sample(c(-1, 1), n, replace = TRUE, prob = c(9/19, 10/19))
+    sum(X)
+}
+S <- replicate(B, roulette_winnings(n))
+# The Central Limit Theorem (CLT) tells us that the sum S is
+# approximated by a normal distribution. Using the formulas above, we
+# know that the expected value and standard error are:
+# theoretical values:
+n * (20 - 18) / 38
+sqrt(n) * 2 * sqrt(90) / 19
+# MC simulation:
+mean(S)
+sd(S)
+
+# Using the CLT, we can skip the Monte Carlo simulation and instead 
+# compute the probability of the casino losing money using this
+# approximation:
+mu <- n * (20 - 18) / 38
+se <- sqrt(n) * 2 * sqrt(90) / 19
+pnorm(0, mu, se)
+# which is also in very good agreement with our Monte Carlo result:
+mean(S < 0)
