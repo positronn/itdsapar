@@ -258,13 +258,14 @@ profit_mean <- mean(profit) / 10^6
 profit_sd <- sd(profit) / 10^6
 tibble(profit_in_millions = profit / 10^6,
        x = seq(-60, 90, length = 10000),
-       pnorm = map(seq(-70, 90, length = 10000), pnorm, mean = profit_mean, sd = profit_sd) %>% unlist()) %>%
+       pnorm = map_dbl(seq(-70, 90, length = 10000), pnorm, mean = profit_mean, sd = profit_sd)) %>%
     mutate(pnorm_scaled = pnorm / scale_coeff) %>% 
     ggplot(mapping = aes(x = profit_in_millions)) +
     geom_histogram(aes(y = after_stat(density)), color = 'black', fill = 'gray', binwidth = 5, alpha = 0.8) +
     geom_vline(xintercept = 0, linetype='dashed') +
     stat_function(fun = dnorm, n = 10000, args = list(mean = profit_mean, sd = profit_sd), color='red1') +
     geom_line(mapping = aes(x = x, y = pnorm_scaled), color = 'royalblue2') +
-    scale_y_continuous(sec.axis = sec_axis(~ . * scale_coeff, name="Cumulative"))
+    scale_y_continuous(sec.axis = sec_axis(~ . * scale_coeff, name="Cumulative")) +
+    ylab('Density')
 
 # not quiet a normal distribution....
