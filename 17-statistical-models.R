@@ -161,4 +161,83 @@ polls
 # In the following section, rather than use the urn model theory, we are instead
 # going to develop a data-driven model.
 
+# 17.2 Data driven models
+# For each pollster, let’s collect their last reported result before the election:
+one_poll_per_pollster <- polls %>% 
+    group_by(pollster) %>% 
+    filter(enddate == max(enddate)) %>% 
+    ungroup()
+
+one_poll_per_pollster
+one_poll_per_pollster %>% 
+    ggplot() +
+    geom_histogram(mapping = aes(x = spread), binwidth = 0.01, color = 'black')
+
+
+sd(one_poll_per_pollster$spread)
+
+# We are now ready to form a new confidence interval based on our new data driven model:
+results <- one_poll_per_pollster %>% 
+    summarise(average = mean(spread),
+              se = sd(spread) / sqrt(length(spread)) ) %>% 
+    mutate (start = average - 1.96 * se,
+            end = average + 1.96 * se)
+
+round(results * 100, 1)
+
+# Our confidence interval is wider now since it incorporates the pollster
+# variability. It does include the election night result of 2.1%. Also, note
+# that it was small enough not to include 0, which means we were confident
+# Clinton would win the electoral vote.
+
+# Are we now ready to declare a probability of Clinton winning the popular
+# vote? Not yet. In our model d is a fixed parameter so we can’t talk about
+# probabilities. To provide probabilities, we will need to learn about
+# Bayesian statistics.
+
+# 17.4 Bayesian statistics
+# What does it mean when an election forecaster tells us that a given
+# candidate has a 90% chance of winning? In the context of the urn model,
+# this would be equivalent to stating that the probability p > 0.5 is 90%.
+# However, as we discussed earlier, in the urn model p is a fixed parameter
+# and it does not make sense to talk about probability. With Bayesian statistics,
+# we model p as random variable and thus statement such as
+# “90% chance of winning” are consistent with the approach.
+
+
+# 17.5 Bayes Theorem simulation
+# The following simulation is meant to help you visualize Bayes Theorem.
+# We start by randomly selecting 100,000 people from a population in which
+# the disease in question has a 1 in 4,000 prevalence.
+prev <- 0.00025
+N <- 100000
+outcome <- sample(c('disease', 'healthy'), N, replace = TRUE,
+                  prob = c(prev, 1 - prev))
+outcome
+# Note that there are very few people with the disease:
+N_D <- sum(outcome == 'disease')
+N_D
+N_H <- sum(outcome == "healthy")
+N_H
+
+# Also, there are many without the disease, which makes it more probable that
+# we will see some false positives given that the test is not perfect.
+# Now each person gets the test, which is correct 99% of the time:
+accuracy <- 0.99
+test <- vector('character', N)
+test[outcome == 'disease'] <- sample(c('+', '-'), N_D, replace = TRUE,
+                                       prob = c(accuracy, 1 - accuracy))
+test[outcome == 'healthy'] <- sample(c('-', '+'), N_H, replace = TRUE,
+                                     prob = c(accuracy, 1 - accuracy))
+
+# Because there are so many more controls than cases, even with a
+# low false positive rate we get more controls than cases in the group that
+# tested positive:
+outcome %>% 
+    table(test)
+
+# From this table, we see that the proportion of positive tests that have
+# the disease is 23 out of 988. We can run this over and over again to see
+# that, in fact, the probability converges to about 0.022.
+
 
