@@ -601,3 +601,16 @@ falling_object %>%
 # The data does not fall exactly on a parabola. Galileo knows this is due to measurement error. His helpers
 # make mistakes when measuring the distance. To account for this, he models the data with:
 # Yi =β0 +β1xi +β2x2i +εi,i=1,...,n
+
+fit <- falling_object %>% 
+    mutate(time_sq = time ^ 2) %>% 
+    lm(observed_distance ~ time + time_sq, data = .)
+tidy(fit)
+
+# Let’s check if the estimated parabola fits the data. The broom function augment lets us do this easily:
+augment(fit) %>% 
+    ggplot() +
+    geom_point(aes(time, observed_distance)) +
+    geom_line(aes(time, .fitted), col = 'blue')
+
+tidy(fit, conf.int = TRUE)
