@@ -274,3 +274,4 @@ galton_heights %>%
 #  if our data is approximately bivariate, then the conditional expectation, the best
 # prediction of Y given we know the value of X, is given by the regression line.
 
+p + geom_smooth(method = "lm")
