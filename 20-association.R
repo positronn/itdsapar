@@ -178,3 +178,12 @@ admissions %>%
 admissions %>% 
     ggplot(aes(major, admitted, col = gender, size = applicants)) +
     geom_point()
+
+# Now we see that major by major, there is not much difference. The size of the dot represents the number of applicants, and explains the paradox: we see large red dots and small blue dots for the easiest majors, A and B.
+# If we average the difference by major, we find that the percent is actually 3.5% higher for women.
+admissions %>% 
+    group_by(gender) %>% 
+    summarize(average = mean(admitted))
+
+
+# 20.5 Simpson’s paradox
