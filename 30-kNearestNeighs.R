@@ -71,3 +71,18 @@ accuracy <- map_df(ks, function(k) {
     
     tibble(train = train_error, test = test_error)
 })
+
+
+# 30.5 Bootstrap
+# Suppose the income distribution of your population is as follows:
+log10(income) %>% 
+    ggplot(bins=30, color = 'black')
+
+
+# The bootstrap permits us to approximate a Monte Carlo simulation without access to the entire distribution. The general idea is relatively simple. We act as if the observed sample is the population. We then sample (with replacement) datasets, of the same sample size as the original dataset. Then we compute the summary statistic, in this case median, on this bootstrap sample.
+# Theory tells us that, in many situations, the distribution of the statistics obtained with bootstrap samples approximate the distribution of our actual statistic. This is how we construct bootstrap samples and an approximate distribution:
+B <- 10^4
+M_stars <- replicate(B, {
+    X_star <- sample(X, N, replace=TRUE)
+    M_star <- median(X_star)
+})
