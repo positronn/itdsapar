@@ -171,3 +171,115 @@ X_standardized <- sweep(X_mean_0, 2, colSds(x), FUN = '/')
 
 
 # 34.1.9 Matrix algebra operations
+# 1. Matrix multiplication is done with %*%. For example, the cross product is:
+t(x) %*% x
+# 2. We can compute the cross product directly with the function:
+crossprod(x)
+# 3. To compute the inverse of a function, we use solve. Here it is applied to the cross product:
+solve(crossprod(x))
+# 4. The QR decomposition is readily available by using the qr function:
+qr(x)
+# 34.3 Distance
+# Many of the analyses we perform with high-dimensional data relate directly or indirectly to distance. Most clustering and machine learning techniques rely on being able to define distance between observations, using features or predictors.
+
+# 34.3.1 Euclidean distance
+# 34.3.2 Distance in higher dimensions
+# 34.3.5 Distance between predictors
+# To compute the distance between all pairs of the 784 predictors, we can transpose the matrix first and then use dist:
+d <- dist(t(x))
+dim(as.matrix(d))
+# An interesting thing to note here is that if we pick a predictor (a pixel), we can see which pixels are close. That is, the pair of pixels either have ink in the same images (small distance) or they don’t (large distance). The distance between, for example, and all other pixels is given by:
+d_492 <- as.matrix(d)[492, ]
+# We can now see the spatial pattern of these distances with the following code:
+image(1:28, 1:28, matrix(d_492, 28, 28))
+# Not surprisingly, points physically nearby are mathematically closer.
+
+
+#  34.5.1 Preserving distance
+# We consider an example with twin heights. Some pairs are adults the others are children. Here we simulate 100 two-dimensional points that represent the number of standard deviations each individual is from the mean height. Each point is a pair of twins. We use the mvrnorm function from the MASS package to simulate bivariate normal data.
+set.seed(1988)
+library(MASS)
+n <- 100
+x <- rbind(mvrnorm(n / 2, c(69, 69), matrix(c(9, 9 * 0.9, 9 * 0.92, 9 * 1), 2, 2)),
+           mvrnorm(n / 2, c(55, 55), matrix(c(9, 9 * 0.9, 9 * 0.92, 9 * 1), 2, 2)))
+
+ggplot() +
+    geom_point(mapping = aes(x = x[, 1], y = x[, 2]), shape = 'o')
+
+# Our features are N two-dimensional points, the two heights, and, for illustrative purposes, we will act as if visualizing two dimensions is too challenging. We therefore want to reduce the dimensions from two to one, but still be able to understand important characteristics of the data, for example that the observations cluster into two groups: adults and children.
+# We can compute these distances using dist:
+d <- dist(x)
+as.matrix(d)[1, 2]
+as.matrix(d)[2, 51]
+
+# This distance is based on two dimensions and we need a distance approximation based on just one.
+
+# Let’s start with the naive approach of simply removing one of the two dimensions. 
+z <- x[, 1]
+d_z <- dist(z)
+# Here are the approximate distances versus the original distances:
+ggplot() +
+    geom_point(mapping = aes(x = as.matrix(d)[,1] %>% as.vector,
+                             y = as.matrix(d_z)[,1] %>% as.vector)) +
+    geom_abline(slope = 1, intercept = 0, color = 'red') +
+    xlab('dist(x)') +
+    ylab('dist(z)')
+# The plot looks about the same if we use the second dimension. We obtain a general underestimation. This is to be expected because we are adding more positive quantities in the distance calculation as we increase the number of dimensions
+# If instead we use an average
+# then the underestimation goes away. We divide the distance by √2 to achieve the correction
+ggplot() +
+    geom_point(mapping = aes(x = as.matrix(d)[,1] %>% as.vector / sqrt(2),
+                             y = as.matrix(d_z)[,1] %>% as.vector)) +
+    geom_abline(slope = 1, intercept = 0, color = 'red') +
+    xlab('dist(x)') +
+    ylab('dist(z)')
+# This actually works pretty well and we get an typical difference of:
+sd(dist(x) - dist(z) * sqrt(2))
+# Notice that if we instead plot the difference versus the average:
+z <- cbind((x[,2] + x[,1])/2, x[,2] - x[,1])
+# we can see how the distance between points is mostly explained by the first dimension: the average.
+ggplot() +
+    geom_point(mapping = aes(x = z[, 1],
+                             y = z[, 2]))
+
+# This means that we can ignore the second dimension and not lose too much information. If the line is completely flat, we lose no information at all. Using the first dimension of this transformed matrix we obtain an even better approximation:
+sd((dist(x) - dist(z[,1]) *sqrt(2)))
+
+# Later we learn that z[,1] is the first principal component of the matrix x.
+
+# 34.5.3 Orthogonal transformations
+# In our example, to achieve orthogonality, we multiply the first set of coefficients (first column of A) by √2 and the second by 1/√2, then we get the same exact distance if we use both dimensions:
+z[,1] <- (x[,1] + x[,2]) / sqrt(2)
+z[,2] <- (x[,2] - x[,1]) / sqrt(2)
+
+d_z <- dist(z)
+# Here are the approximate distances versus the original distances:
+# This gives us a transformation that preserves the distance between any two points:
+ggplot() +
+    geom_point(mapping = aes(x = as.matrix(d)[,1] %>% as.vector,
+                             y = as.matrix(d_z)[,1] %>% as.vector)) +
+    geom_abline(slope = 1, intercept = 0, color = 'red') +
+    xlab('dist(x)') +
+    ylab('dist(z)')
+
+
+# and an improved approximation if we use just the first dimension:
+sd(dist(x) - dist(z[,1]))
+# In this case Z is called an orthogonal rotation of X: it preserves the distances between rows.
+# Note that by using the transformation above we can summarize the distance between any two pairs of twins with just one dimension. For example, one-dimensional data exploration of the first dimension of Z clearly shows that there are two groups, adults and children:
+ggplot() +
+    geom_histogram(mapping = aes(x = z[, 1]), bins=20, color = 'black')
+
+# We successfully reduced the number of dimensions from two to one with very little loss of information.
+# The reason we were able to do this is because the columns of X were very correlated:
+cor(x[,1], x[,2])
+# and the transformation produced uncorrelated columns with “independent” information in each column:
+cor(z[,1], z[,2])
+
+
+# One way this insight may be useful in a machine learning application is that we can reduce the complexity of a model by using just Z1 rather than both X1 and X2.
+
+
+# 34.5.4 Principal Component Analysis
+# In the computation above, the total variability in our data can be defined as the sum of the sum of squares of the columns. We assume the columns are centered, so this sum is equivalent to the sum of the variances of each column:
+colMeans(x ^ 2)
