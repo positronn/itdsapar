@@ -511,3 +511,71 @@ rmse_results <- tibble(method = "Just the average", RMSE = naive_rmse)
 
 
 # 34.7.5 Modeling movie effects
+# 
+# We know from experience that some movies are just generally rated higher than others. This intuition, that different movies are rated differently, is confirmed by data. We can augment our previous model by adding the term bi to represent average ranking for movie i:
+# Yu,i =μ+bi +εu,i
+# Statistics textbooks refer to to the bs as effects. However, in the Netflix challenge papers, they refer to them as “bias”, thus the b notation.
+# We can again use least squares to estimate the bi in the following way:
+# fit <- lm(rating ~ as.factor(movieId), data = movielens)
+
+# Because there are thousands of bi as each movie gets one, the lm() function will be very slow here. We therefore don’t recommend running the code above. But in this particular situation, we know that the least square estimate ˆbi is just the average of Yu,i − μˆ for each movie i. So we can compute them this way (we will drop the hat notation in the code to represent estimates going forward):
+mu <- mean(train_set$rating)
+
+movie_avgs <- train_set %>% 
+    group_by(movieId) %>% 
+    summarize(b_i = mean(rating - mu))
+
+# We can see that these estimates vary substantially:
+movie_avgs %>% 
+    ggplot() +
+    geom_histogram(aes(x = b_i), bins = 10, color = 'black')
+
+# Remember μˆ = 3.5 so a bi = 1.5 implies a perfect five star rating.
+# Let’s see how much our prediction improves once we use yˆu,i = μˆ + ˆbi:
+predicted_ratings <- mu + test_set %>% 
+    left_join(movie_avgs, by = 'movieId') %>% 
+    pull(b_i)
+
+
+model_1_rmse = RMSE(predicted_ratings, test_set$rating)
+rmse_results <- bind_rows(rmse_results,
+                          tibble(method = 'movie effect model',
+                                 RMSE = model_1_rmse))
+rmse_results
+
+
+# 34.7.6 User effects
+train_set %>% 
+    group_by(userId) %>% 
+    summarize(b_u = mean(rating)) %>% 
+    filter(n() >= 100) %>% 
+    ggplot(aes(b_u)) +
+    geom_histogram(bins = 30, color = 'black')
+
+# Yu,i = μ+bi +bu +εu,i
+# where bu is a user-specific effect. Now if a cranky user (negative bu) rates a great movie (positive bi), the effects counter each other and we may be able to correctly predict that this user gave this great movie a 3 rather than a 5.
+# To fit this model, we could again use lm like this:
+# lm(rating ~ as.factor(movieId) + as.factor(userId))
+# but, for the reasons described earlier, we won’t. Instead, we will compute an approximation by computing μˆ and ˆbi and estimating ˆbu as the average of yu,i − μˆ − ˆbi:
+user_avgs <- train_set %>% 
+    left_join(movie_avgs, by = 'movieId') %>% 
+    group_by(userId) %>% 
+    summarize(b_u = mean(rating - mu - b_i))
+
+# We can now construct predictors and see how much the RMSE improves:
+predicted_ratings <- test_set %>% 
+    left_join(movie_avgs, by = 'movieId') %>% 
+    left_join(user_avgs, by = 'userId') %>% 
+    mutate(pred = mu + b_i + b_u) %>% 
+    pull(pred)
+
+model_2_rmse <- RMSE(predicted_ratings, test_set$rating)
+rmse_results <- bind_rows(rmse_results,
+                          tibble(method='movie + user effects model',
+                                 RMSE = model_2_rmse))
+
+rmse_results
+
+
+# 34.9 Regularization
+# Despite the large movie to movie variation, our improvement in RMSE was only about 5%. Let’s explore where we made mistakes in our first model, using only movie effects bi. Here are the 10 largest mistakes:
