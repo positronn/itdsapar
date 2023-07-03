@@ -283,3 +283,231 @@ cor(z[,1], z[,2])
 # 34.5.4 Principal Component Analysis
 # In the computation above, the total variability in our data can be defined as the sum of the sum of squares of the columns. We assume the columns are centered, so this sum is equivalent to the sum of the variances of each column:
 colMeans(x ^ 2)
+# and we can show mathematically that if we apply an orthogonal transformation as above, then the total variation remains the same:
+sum(colMeans(x ^ 2))
+sum(colMeans(z ^ 2))
+
+# However, while the variability in the two columns of X is about the same, in the transformed version Z 99%
+# of the variability is included in just the first dimension:
+v <- colMeans(z ^ 2)  
+v / sum(v)
+# The first principal component (PC) of a matrix X is the linear orthogonal transformation of X that maximizes this variability. The function prcomp provides this info:
+pca <- prcomp(x)
+pca$rotation
+# The function PCA returns both the rotation needed to transform X so that the variability of the columns is decreasing from most variable to least (accessed with $rotation) as well as the resulting new matrix
+# (accessed with $x). By default the columns of X are first centered.
+
+
+# So using the matrix multiplication shown above, we have that the following are the same (demonstrated by a difference between elements of essentially zero):
+a <- sweep(x, 2, colMeans(x))
+b <- pca$x %*% t(pca$rotation)
+max(abs(a - b))
+
+# The rotation is orthogonal which means that the inverse is its transpose. So we also have that these two are identical:
+a <- sweep(x, 2, colMeans(x)) %*% pca$rotation
+b <- pca$x
+max(abs(a - b))
+
+
+# 34.5.5 Iris Example
+names(iris)
+# Let’s compute the distance between each observation. You can clearly see the three species with one species very different from the other two:
+x <- iris[, 1:4] %>% as.matrix
+d <- dist(x)
+image(as.matrix(d), col = rev(RColorBrewer::brewer.pal(9, "RdBu")))
+
+# Our predictors here have four dimensions, but three are very correlated:
+cor(x)
+
+# If we apply PCA, we should be able to approximate this distance with just two dimensions, compressing the highly correlated dimensions. Using the summary function we can see the variability explained by each PC:
+pca <- prcomp(x)
+summary(pca)
+
+
+tibble(PC1 = pca$x[, 1], PC2 = pca$x[, 2], Species = iris$Species) %>% 
+    ggplot(mapping = aes(PC1, PC2, fill = Species)) +
+    geom_point(cex = 3, pch = 21) +
+    coord_fixed(ratio = 1)
+
+# We see that the first two dimensions preserve the distance:
+d_approx <- dist(pca$x[, 1:2])
+ggplot() +
+    geom_point(mapping = aes(x = d, y = d_approx)) +
+    geom_abline(color = 'red')
+
+
+# 34.5.6 MNIST Example
+# The written digits example 784 features. Is there any room for data reduction? Can we create simple machine learning algorithms with using fewer features?
+library(dslabs)
+if(!exists("mnist")) mnist <- read_mnist()
+# Because the pixels are so small, we expect pixels close to each other on the grid to be correlated, meaning that dimension reduction should be possible.
+# Let’s try PCA and explore the variance of the PCs. This will take a few seconds as it is a rather large matrix.
+
+col_means <- colMeans(mnist$test$images)
+pca <- prcomp(mnist$train$images)
+pc <- 1:ncol(mnist$test$images)
+
+ggplot() +
+    geom_point(mapping = aes(x = pc, y = pca$sdev))
+
+# We can see that the first few PCs already explain a large percent of the variability:
+# And just by looking at the first two PCs we see information about the class. Here is a random sample of 2,000 digits:
+tibble(PC1 = pca$x[, 1], PC2 = pca$x[, 2],
+       label = factor(mnist$train$label)) %>% 
+    sample_n(2000) %>% 
+    ggplot(mapping = aes(x = PC1, y = PC2, fill = label)) +
+    geom_point(cex = 3, pch = 21)
+
+# We can also see the linear combinations on the grid to get an idea of what is getting weighted:
+library(RColorBrewer)
+tmp <- lapply(c(1:4, 781:784), function(i){
+    expand.grid(Row = 1:28, Column = 1:28) %>% 
+        mutate(id = 1, label = paste0('PC', i),
+               value = pca$rotation[, i])
+})
+tmp <- Reduce(rbind, tmp)
+
+tmp %>% 
+    tibble() %>% 
+    filter(id < 5, label %in% c('PC1', 'PC2', 'PC3', 'PC4')) %>%
+    ggplot(aes(Row, Column, fill=value)) +
+    geom_raster() +
+    scale_y_reverse() +
+    scale_fill_gradientn(colors = brewer.pal(9, 'RdBu')) +
+    facet_wrap(~ label, nrow = 1)
+
+
+tmp %>% 
+    tibble() %>% 
+    filter(id < 5, !label %in% c('PC1', 'PC2', 'PC3', 'PC4')) %>%
+    ggplot(aes(Row, Column, fill=value)) +
+    geom_raster() +
+    scale_y_reverse() +
+    scale_fill_gradientn(colors = brewer.pal(9, 'RdBu')) +
+    facet_wrap(~ label, nrow = 1)
+
+# Now let’s apply the transformation we learned with the training data to the test data, reduce the dimension and run knn on just a small number of dimensions.
+
+# We try 36 dimensions since this explains about 80% of the data
+library(caret)
+k <- 36
+x_train <- pca$x[,1:k]
+y <- factor(mnist$train$labels)
+fit <- knn3(x_train, y)
+
+
+x_test <- sweep(mnist$test$images, 2, col_means) %*% pca$rotation
+x_test <- x_test[,1:k]
+
+# And we are ready to predict and see how we do:
+y_hat <- predict(fit, x_test, type = "class")
+confusionMatrix(y_hat, factor(mnist$test$labels))$overall["Accuracy"]
+
+# With just 36 dimensions we get an accuracy well above 0.95.
+
+
+
+
+# 34.7 Recommendation systems
+# 34.7.1 Movielens data
+# The Netflix data is not publicly available, but the GroupLens research lab generated their own database with over 20 million ratings for over 27,000 movies by more than 138,000 users. We make a small subset of this data available via the dslabs package:
+library(tidyverse)
+library(dslabs)
+data('movielens')
+
+
+# We can see this table is in tidy format with thousands of rows:
+movielens <- movielens %>% 
+    as_tibble()
+# Each row represents a rating given by one user to one movie.
+# We can see the number of unique users that provided ratings and how many unique movies were rated:
+
+movielens %>% 
+    summarise(n_users = n_distinct(userId),
+              n_movies = n_distinct(movieId))
+# If we multiply those two numbers, we get a number larger than 5 million, yet our data table has about 100,000 rows. This implies that not every user rated every movie. So we can think of these data as a very large matrix, with users on the rows and movies on the columns, with many empty cells. The gather function permits us to convert it to this format, but if we try it for the entire matrix, it will crash R.
+# You can think of the task of a recommendation system as filling in the NAs
+# This machine learning challenge is more complicated than what we have studied up to now because each outcome Y has a different set of predictors. To see this, note that if we are predicting the rating for movie i by user u, in principle, all other ratings related to movie i and by user u may used as predictors, but different users rate different movies and a different number of movies. Furthermore, we may be able to use information from other movies that we have determined are similar to movie i or from users determined to be similar to user u. In essence, the entire matrix can be used as predictors for each cell.
+# Let’s look at some of the general properties of the data to better understand the challenges.
+# The first thing we notice is that some movies get rated more than others. Here is the distribution:
+
+movielens %>% 
+    count(title) %>% 
+    count(n) %>% 
+    ggplot() +
+    geom_histogram(aes(x = n, y = nn), stat='identity') +
+    xlim(c(0, 100))
+
+movielens %>% 
+    count(title) %>% 
+    ggplot() +
+    geom_histogram(aes(x = n), bins=30, color = 'black') +
+    xlim(c(0, 1000)) +
+    scale_x_log10()
+
+# This should not surprise us given that there are blockbuster movies watched by millions and artsy, indepen- dent movies watched by just a few.
+# Our second observation is that some users are more active than others at rating movies:
+movielens %>% 
+    count(userId) %>% 
+    count(n) %>% 
+    ggplot() +
+    geom_histogram(aes(x = n, y = nn), stat='identity') +
+    xlim(c(0, 100))
+
+movielens %>% 
+    count(userId) %>% 
+    ggplot() +
+    geom_histogram(aes(x = n), bins=30, color = 'black') +
+    xlim(c(0, 1000)) +
+    scale_x_log10()
+
+
+# 34.7.2 Recommendation systems as a machine learning challenge
+# 
+# To see how this is a type of machine learning, notice that we need to build an algorithm with data we have collected that will then be applied outside our control, as users look for movie recommendations. So let’s create a test set to assess the accuracy of the models we implement.
+library(caret)
+set.seed(755)
+
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.2, list = FALSE)
+train_set <- movielens[-test_index, ]
+test_set <- movielens[test_index, ]
+
+# To make sure we don’t include users and movies in the test set that do not appear in the training set, we remove these entries using the semi_join function:
+test_set <- test_set %>% 
+    semi_join(train_set, by = 'movieId') %>% 
+    semi_join(train_set, by = 'userId')
+
+
+# 34.7.3 Loss function
+# The Netflix challenge used the typical error loss: they decided on a winner based on the residual mean squared error (RMSE) on a test set. We define yu,i as the rating for movie i by user u and denote our prediction with yˆu,i.
+# Let’s write a function that computes the RMSE for vectors of ratings and their corresponding predictors:
+RMSE <- function(y, y_hat) {
+    sqrt(mean((y - y_hat)) ^ 2)
+}
+
+# 34.7.4 A first model
+# Let’s start by building the simplest possible recommendation system: we predict the same rating for all movies regardless of user. What number should this prediction be? We can use a model based approach to answer this. A model that assumes the same rating for all movies and users with all the differences explained by random variation would look like this:
+# 
+# Yu,i = μ + εu,i
+# with εi,u independent errors sampled from the same distribution centered at 0 and μ the “true” rating for all movies.
+#  We know that the estimate that minimizes the RMSE is the least squares estimate of μ and, in this case, is the average of all ratings:
+mu_hat <- mean(train_set$rating)
+mu_hat
+
+# If we predict all unknown ratings with μˆ we obtain the following RMSE:
+naive_rmse <- RMSE(test_set$rating, mu_hat)
+naive_rmse
+
+# Keep in mind that if you plug in any other number, you get a higher RMSE. For example:
+predictions <- rep(3, nrow(test_set))
+RMSE(test_set$rating, predictions)
+
+predictions <- rep(1, nrow(test_set))
+RMSE(test_set$rating, predictions)
+
+# From looking at the distribution of ratings, we can visualize that this is the standard deviation of that distribution. We get a RMSE of about 1. To win the grand prize of $1,000,000, a participating team had to get an RMSE of about 0.857. So we can definitely do better!
+# As we go along, we will be comparing different approaches. Let’s start by creating a results table with this naive approach:
+rmse_results <- tibble(method = "Just the average", RMSE = naive_rmse)
+
+
+# 34.7.5 Modeling movie effects
