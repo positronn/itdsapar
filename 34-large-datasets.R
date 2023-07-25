@@ -579,3 +579,156 @@ rmse_results
 
 # 34.9 Regularization
 # Despite the large movie to movie variation, our improvement in RMSE was only about 5%. Let’s explore where we made mistakes in our first model, using only movie effects bi. Here are the 10 largest mistakes:
+test_set %>% 
+    left_join(movie_avgs, by='movieId') %>% 
+    mutate(residual = rating - (mu + b_i)) %>% 
+    arrange(desc(abs(residual))) %>% 
+    select(title, residual) %>% 
+    slice(1:10)
+
+
+movie_titles <- movielens %>% 
+    select(movieId, title) %>% 
+    distinct()
+
+
+movie_avgs %>% 
+    left_join(movie_titles, by='movieId') %>% 
+    arrange(desc(b_i)) %>% 
+    select(title, b_i) %>% 
+    slice(1:10)
+
+
+movie_avgs %>% 
+    left_join(movie_titles, by='movieId') %>% 
+    arrange(b_i) %>% 
+    select(title, b_i) %>% 
+    slice(1:10)
+
+
+train_set %>% 
+    count(movieId) %>% 
+    left_join(movie_avgs) %>% 
+    left_join(movie_titles, by='movieId') %>% 
+    arrange(desc(b_i)) %>% 
+    select(title, b_i, n) %>% 
+    slice(1:10)
+
+
+train_set %>% 
+    count(movieId) %>% 
+    left_join(movie_avgs) %>% 
+    left_join(movie_titles, by='movieId') %>% 
+    arrange(b_i) %>% 
+    select(title, b_i, n) %>% 
+    slice(1:10)
+
+# The supposed “best” and “worst” movies were rated by very few users, in most cases just 1. These movies were mostly obscure ones. This is because with just a few users, we have more uncertainty. Therefore, larger
+# estimates of bi, negative or positive, are more likely.
+
+
+#
+# 34.9.2 Penalized Least Squares
+# The general idea of penalized regression is to control the total variability of the effects:
+
+lambda <- 3
+mu <- mean(train_set$rating)
+movie_reg_avgs <- train_set %>% 
+    group_by(movieId) %>% 
+    summarize(b_i = sum(rating - mu) / ( n() + lambda ),
+              n_i = n())
+
+# To see how the estimates shrink, let’s make a plot of the regularized estimates versus the least squares estimates.
+tibble(original = movie_avgs$b_i,
+       regularized = movie_reg_avgs$b_i,
+       n = movie_reg_avgs$n_i) %>% 
+    ggplot(mapping = aes(original, regularized, size=sqrt(n))) +
+        geom_point(shape = 1, alpha = 0.5)
+
+# Now, let’s look at the top 10 best movies based on the penalized estimates ˆb_i(λ):
+train_set %>% 
+    count(movieId) %>% 
+    left_join(movie_reg_avgs, by = 'movieId') %>% 
+    left_join(movie_titles, by = 'movieId') %>% 
+    arrange(desc(b_i)) %>% 
+    select(title, b_i, n) %>% 
+    slice(1:10)
+
+# These make much more sense! Here are the top 10 worst movies:
+train_set %>% 
+    count(movieId) %>% 
+    left_join(movie_reg_avgs, by = 'movieId') %>% 
+    left_join(movie_titles, by='movieId') %>% 
+    arrange(b_i) %>% 
+    select(title, b_i, n) %>% 
+    slice(1:10)
+
+
+# do we improve our results?
+predicted_ratings <- test_set %>% 
+    left_join(movie_reg_avgs, by = 'movieId') %>% 
+    mutate(pred = mu + b_i) %>% 
+    pull(pred)
+
+
+model_3_rmse <- RMSE(predicted_ratings, test_set$rating)
+rmse_results <- bind_rows(rmse_results,
+                          tibble(method = 'regularized movie effect model',
+                                     rmse = model_3_rmse))
+rmse_results
+
+# The penalized estimates provide a large improvement over the least squares estimates.
+
+
+# 34.9.3 Choosing the penalty terms
+# Note that λ is a tuning parameter. We can use cross-validation to choose it.
+lambdas <- seq(-10, 10, 0.25)
+
+mu <- mean(train_set$rating)
+just_the_sum <- train_set %>% 
+    group_by(movieId) %>% 
+    summarize(s = sum(rating - mu), 
+              n_i = n())
+
+rmses <- sapply(lambdas, function(l) {
+    predicted_ratings <- test_set %>% 
+        left_join(just_the_sum, by='movieId') %>% 
+        mutate(b_i = s / (n_i + l)) %>% 
+        mutate(pred = mu + b_i) %>% 
+        pull(pred)
+    return(RMSE(predicted_ratings, test_set$rating))
+})
+
+ggplot() +
+    geom_point(mapping = aes(x = lambdas, y = rmses))
+lambdas[which.min(rmses)]
+
+
+# The estimates that minimize this can be found similarly to what we did above. Here we use cross-validation to pick a λ:
+lambdas <- seq(0, 10, 0.25)
+rmses <- sapply(lambdas, function(l){
+    
+    mu <- mean(train_set$rating)
+    
+    b_i <- train_set %>% 
+        group_by(movieId) %>% 
+        summarize(b_i = sum(rating - mu) / ( n() + l ))
+    
+    b_u <- train_set %>% 
+        left_join(b_i, by = 'movieId') %>% 
+        group_by(userId) %>% 
+        summarize(b_u = sum(rating - b_i - mu) / ( n() + l ))
+    
+    predicted_ratings <- test_set %>% 
+        left_join(b_i, by = 'movieId') %>% 
+        left_join(b_u, by = 'userId') %>% 
+        mutate(pred = mu + b_i + b_u) %>% 
+        pull(pred)
+    
+    return(RMSE(predicted_ratings, test_set$rating))
+})
+
+ggplot() +
+    geom_point(mapping = aes(x = lambdas, y = rmses))
+lambdas[which.min(rmses)]
+
